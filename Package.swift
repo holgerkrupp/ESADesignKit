@@ -18,15 +18,14 @@ let package = Package(
         )
     ],
     dependencies: [
-        // DeviceInfo stays its own package; ESADesignKit owns the dependency and
-        // re-exports it so consuming apps don't reference it directly.
-        .package(path: "../DeviceInfo")
+        // Hosted dependency so the package resolves cleanly on other machines.
+        .package(url: "https://github.com/holgerkrupp/SwiftDeviceInfo.git", branch: "main")
     ],
     targets: [
         .target(
             name: "ESADesignKit",
             dependencies: [
-                .product(name: "DeviceInfo", package: "DeviceInfo")
+                .product(name: "DeviceInfo", package: "SwiftDeviceInfo")
             ],
             resources: [
                 .process("Resources/ESAAssets.xcassets")
