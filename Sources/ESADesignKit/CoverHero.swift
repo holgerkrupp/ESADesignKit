@@ -128,8 +128,11 @@ private struct CoverHeroBackground: View {
                 .scaleEffect(scale, anchor: .top)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .clipped()
-                .ignoresSafeArea()
         }
+        // Full-bleed backdrop: bleed under every safe area (status bar, home
+        // indicator) so the grown cover reaches the physical screen edges, and so
+        // the `GeometryReader` measures the full height the cover zooms to fill.
+        .ignoresSafeArea()
         .accessibilityHidden(true)
     }
 
