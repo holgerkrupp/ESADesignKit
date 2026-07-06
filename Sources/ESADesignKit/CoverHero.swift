@@ -128,6 +128,7 @@ private struct CoverHeroBackground: View {
                 .scaleEffect(scale, anchor: .top)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .clipped()
+                .ignoresSafeArea()
         }
         .accessibilityHidden(true)
     }
