@@ -106,6 +106,42 @@ final class ESABlurredImageCache: @unchecked Sendable {
     #endif
 }
 
+/// In-memory cache of sharp (unblurred) cover images, keyed by URL. Used by the
+/// `coverHero` when it is given a `URL` source, so the hero and its aspect ratio
+/// come from the real pixels without running a live download per redraw.
+final class ESAImageCache: @unchecked Sendable {
+    static let shared = ESAImageCache()
+
+    private let cache = NSCache<NSURL, ESAPlatformImage>()
+
+    private init() {
+        cache.countLimit = 120
+    }
+
+    func cached(for url: URL) -> ESAPlatformImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    func store(_ image: ESAPlatformImage, for url: URL) {
+        cache.setObject(image, forKey: url as NSURL)
+    }
+
+    /// Returns a cached image, or downloads + caches one.
+    func image(for url: URL) async -> ESAPlatformImage? {
+        if let cached = cached(for: url) {
+            return cached
+        }
+
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let image = ESAPlatformImage(data: data) else {
+            return nil
+        }
+
+        store(image, for: url)
+        return image
+    }
+}
+
 extension Image {
     init(esaPlatformImage: ESAPlatformImage) {
         #if canImport(UIKit)
