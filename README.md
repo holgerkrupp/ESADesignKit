@@ -73,6 +73,73 @@ List {
 Blur radius (15) and opacity (0.5) are fixed for a consistent look. The struct
 form `ESAFullBackground(image:)` is also available.
 
+### `coverHero` — the immersive detail cover
+
+A full-width cover drawn **behind** a detail screen's scrolling content. At rest
+the whole cover is visible at its natural height; as the content scrolls up the
+cover grows — pinned to the top and bleeding under the safe areas — until it
+covers the full screen height, while the content slides up over it as a frosted
+panel.
+
+It's a **single modifier** on any scroll container — `List`, `ScrollView`, … —
+that adapts the content automatically. `.coverHero(…)`:
+
+1. makes the scroll content transparent,
+2. reserves the cover's footprint with a scrollable top margin (no spacer view),
+3. paints one continuous frosted sheet behind the content that rises over the
+   cover as you scroll, and
+4. draws the zooming cover behind it all.
+
+```swift
+ScrollView {
+    VStack(spacing: 16) {
+        // content…
+    }
+}
+.coverHero(imageData: cover, title: name)
+```
+
+Scroll tracking uses `onScrollGeometryChange`, so the grow-on-scroll effect is
+active on iOS 18 / macOS 15 / watchOS 11 and newer; older systems just show the
+cover without the zoom.
+
+#### One caveat for `List`
+
+`.coverHero` makes the list's *background* transparent, but SwiftUI still gives
+each **row cell** an opaque system background. Set your rows clear so the frosted
+sheet shows through them (headers/footers are handled for you):
+
+```swift
+List {
+    Section("Info") {
+        // rows…
+    }
+    .listRowBackground(Color.clear)     // ← required so rows aren't solid white
+}
+.listStyle(.plain)
+.coverHero(imageData: game.artwork, title: game.name)
+```
+
+`ScrollView`/`VStack` content needs nothing extra.
+
+#### Notes
+
+- `enabled:` gates the effect — e.g. `enabled: horizontalSizeClass == .compact`
+  so a full-bleed hero shows on iPhone while a wide layout opts out (returns the
+  content unchanged).
+- `material:` sets the frosting (default `.ultraThinMaterial`).
+- `title` is optional; pass `""` to draw the cover without a title overlay.
+- Layer it over `ESAFullBackground` for a blurred backdrop behind the frosted
+  content and in any letterboxed areas.
+
+#### Advanced: hand-built frosting
+
+For layouts that need finer control than the automatic sheet, the building
+blocks are also public: `frostedDetailRow()` / `frostedDetailSectionHeader()`
+(per-cell `List` frosting), `frostedContentPanel(coverImageData:)` (one-shot
+frosting + spacer for non-`List` content), and `CoverHeroSpacer` (a manual
+footprint spacer). Most callers won't need these — `.coverHero` alone is enough.
+
 ### `CreatedByView` — shared footer
 
 The "Created in Buxtehude by Extremely Successful Apps" credit footer, ready to

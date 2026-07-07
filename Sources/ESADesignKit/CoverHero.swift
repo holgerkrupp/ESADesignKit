@@ -31,11 +31,20 @@ public extension View {
     ///   - imageData: Encoded cover image (PNG/JPEG/…). `nil` shows a placeholder.
     ///   - title: Optional title drawn across the bottom of the cover. Empty hides it.
     ///   - enabled: When `false` the modifier is a no-op (e.g. on regular-width layouts).
+    ///   - material: Frosting material for the content that covers the hero.
     ///   - placeholderAspectRatio: Width/height used to size the hero when there is no image.
+    ///
+    /// This modifier adapts the content automatically: it makes the scroll
+    /// content transparent, reserves the cover's footprint with a scrollable top
+    /// margin, and paints one continuous frosted sheet behind the content that
+    /// rises over the cover as you scroll — so no per-row/header/spacer helpers
+    /// are required. (The `frosted…` helpers in FrostedContent.swift remain
+    /// available for hand-built layouts that need finer control.)
     func coverHero(
         imageData: Data?,
         title: String = "",
         enabled: Bool = true,
+        material: Material = .ultraThinMaterial,
         placeholderAspectRatio: CGFloat = 3.0 / 2.0
     ) -> some View {
         modifier(
@@ -43,6 +52,7 @@ public extension View {
                 imageData: imageData,
                 title: title,
                 enabled: enabled,
+                material: material,
                 placeholderAspectRatio: placeholderAspectRatio
             )
         )
@@ -55,24 +65,57 @@ private struct CoverHeroModifier: ViewModifier {
     let imageData: Data?
     let title: String
     let enabled: Bool
+    let material: Material
     let placeholderAspectRatio: CGFloat
     @State private var scrollOffset: CGFloat = 0
 
     func body(content: Content) -> some View {
         if enabled {
-            content
-                .esaTrackVerticalScroll { scrollOffset = $0 }
-                .background(alignment: .top) {
-                    CoverHeroBackground(
-                        imageData: imageData,
-                        title: title,
-                        scrollOffset: scrollOffset,
-                        placeholderAspectRatio: placeholderAspectRatio
-                    )
-                }
+            let aspect = Self.aspectRatio(for: imageData, placeholder: placeholderAspectRatio)
+
+            GeometryReader { proxy in
+                let coverHeight = proxy.size.width / max(0.01, aspect)
+                let scrolledUp = max(0, scrollOffset)
+
+                content
+                    // Make the content see-through so the cover + frosted sheet
+                    // behind it show, and reserve the cover's footprint with a
+                    // scrollable top margin (works for List and ScrollView alike).
+                    .scrollContentBackground(.hidden)
+                    .contentMargins(.top, coverHeight, for: .scrollContent)
+                    .esaTrackVerticalScroll { scrollOffset = $0 }
+                    // One continuous frosted sheet behind the content. At rest it
+                    // starts just below the cover; scrolling up it rises to cover
+                    // the hero, so the content reads as a frosted panel sliding up.
+                    .background(alignment: .top) {
+                        Rectangle()
+                            .fill(material)
+                            .frame(height: proxy.size.height + coverHeight)
+                            .offset(y: coverHeight - scrolledUp)
+                            .ignoresSafeArea()
+                    }
+                    // The cover, furthest back.
+                    .background(alignment: .top) {
+                        CoverHeroBackground(
+                            imageData: imageData,
+                            title: title,
+                            scrollOffset: scrollOffset,
+                            placeholderAspectRatio: placeholderAspectRatio
+                        )
+                    }
+            }
         } else {
             content
         }
+    }
+
+    static func aspectRatio(for imageData: Data?, placeholder: CGFloat) -> CGFloat {
+        if let data = imageData,
+           let image = ESAPlatformImage(data: data),
+           image.size.width > 0, image.size.height > 0 {
+            return image.size.width / image.size.height
+        }
+        return placeholder
     }
 }
 
