@@ -84,14 +84,16 @@ private struct CoverHeroModifier: ViewModifier {
                     .scrollContentBackground(.hidden)
                     .contentMargins(.top, coverHeight, for: .scrollContent)
                     .esaTrackVerticalScroll { scrollOffset = $0 }
-                    // One continuous frosted sheet behind the content. At rest it
-                    // starts just below the cover; scrolling up it rises to cover
-                    // the hero, so the content reads as a frosted panel sliding up.
+                    // One continuous frosted sheet behind the content. At rest its
+                    // top sits just below the cover; scrolling up it rises to cover
+                    // the hero and then stays put (top clamped at 0), so long
+                    // content stays frosted all the way down instead of the sheet
+                    // scrolling out from under the content.
                     .background(alignment: .top) {
                         Rectangle()
                             .fill(material)
-                            .frame(height: proxy.size.height + coverHeight)
-                            .offset(y: coverHeight - scrolledUp)
+                            .frame(height: proxy.size.height + coverHeight * 2)
+                            .offset(y: max(0, coverHeight - scrolledUp))
                             .ignoresSafeArea()
                     }
                     // The cover, furthest back.
