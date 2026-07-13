@@ -17,6 +17,7 @@ import SwiftUI
 /// is identical everywhere it's used.
 public struct ESAFullBackground: View {
     private let source: ESAImageSource
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     /// The single, shared blur radius for the full-screen backdrop.
     public static var blurRadius: CGFloat { 50 }
@@ -28,15 +29,21 @@ public struct ESAFullBackground: View {
     }
 
     public var body: some View {
-        ESABlurredBackground(
-            source: source,
-            radius: Self.blurRadius,
-            placeholderColor: .accentColor
-        )
-        .scaledToFill()
+        Group {
+            if colorSchemeContrast == .increased {
+                ESAAccessibilityBackground()
+            } else {
+                ESABlurredBackground(
+                    source: source,
+                    radius: Self.blurRadius,
+                    placeholderColor: .accentColor
+                )
+                .scaledToFill()
+                .opacity(Self.opacity)
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(.all)
-        .opacity(Self.opacity)
     }
 }
 

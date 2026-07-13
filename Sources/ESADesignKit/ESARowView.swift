@@ -27,6 +27,7 @@ public struct ESARowView<Content: View>: View {
     private let minHeight: CGFloat
     private let cornerRadius: CGFloat
     private let content: Content
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     /// The single, shared blur radius for every ESA row.
     public static var blurRadius: CGFloat { 8 }
@@ -47,21 +48,28 @@ public struct ESARowView<Content: View>: View {
 
     public var body: some View {
         ZStack {
-            ESABlurredBackground(
-                source: source,
-                radius: Self.blurRadius,
-                placeholderColor: .accentColor
-            )
-            .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: minHeight)
-            .clipped()
-            .accessibilityHidden(true)
+            if colorSchemeContrast == .increased {
+                ESAAccessibilityBackground()
+                    .accessibilityHidden(true)
+            } else {
+                ESABlurredBackground(
+                    source: source,
+                    radius: Self.blurRadius,
+                    placeholderColor: .accentColor
+                )
+                .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: minHeight)
+                .clipped()
+                .accessibilityHidden(true)
+            }
 
             content
                 .padding(Self.contentPadding)
                 .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
-                .background(
-                    Rectangle().fill(.thinMaterial)
-                )
+                .background {
+                    if colorSchemeContrast == .standard {
+                        Rectangle().fill(.thinMaterial)
+                    }
+                }
         }
         .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
         .modifier(ESACornerClip(radius: cornerRadius))

@@ -248,41 +248,50 @@ private struct CoverHeroModifier: ViewModifier {
     let material: Material
     let placeholderAspectRatio: CGFloat
     @State private var scrollOffset: CGFloat = 0
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     func body(content viewContent: Content) -> some View {
         if enabled {
-            let aspect = self.content.aspectRatio(placeholder: placeholderAspectRatio)
-
-            GeometryReader { proxy in
-                let width = proxy.size.width
-                let topInset = proxy.safeAreaInsets.top
-                // Reserve the cover's natural full-width height for the scroll
-                // content — measured below the bar, exactly like the content itself.
-                let coverHeight = width / max(0.01, aspect)
-
+            if colorSchemeContrast == .increased {
                 viewContent
-                    // Make the content see-through so the backdrop shows, and reserve
-                    // the cover's footprint with a scrollable top margin (works for
-                    // List and ScrollView alike).
-                    .scrollContentBackground(.hidden)
-                    .contentMargins(.top, coverHeight, for: .scrollContent)
-                    .esaTrackVerticalScroll { scrollOffset = $0 }
-                    // A single full-bleed backdrop draws the cover and the frosted
-                    // sheet in one coordinate space, so they always meet with no gap.
-                    // The resting cover is extended by the top safe-area inset so its
-                    // bottom lands exactly where the (inset) content begins.
-                    .background(alignment: .top) {
-                        CoverHeroBackdrop(
-                            content: self.content,
-                            title: title,
-                            scrollOffset: scrollOffset,
-                            material: material,
-                            containerWidth: width,
-                            coverHeight: coverHeight,
-                            topInset: topInset,
-                            containerHeight: proxy.size.height
-                        )
+                    .background {
+                        ESAAccessibilityBackground()
+                            .ignoresSafeArea(.all)
                     }
+            } else {
+                let aspect = self.content.aspectRatio(placeholder: placeholderAspectRatio)
+
+                GeometryReader { proxy in
+                    let width = proxy.size.width
+                    let topInset = proxy.safeAreaInsets.top
+                    // Reserve the cover's natural full-width height for the scroll
+                    // content — measured below the bar, exactly like the content itself.
+                    let coverHeight = width / max(0.01, aspect)
+
+                    viewContent
+                        // Make the content see-through so the backdrop shows, and reserve
+                        // the cover's footprint with a scrollable top margin (works for
+                        // List and ScrollView alike).
+                        .scrollContentBackground(.hidden)
+                        .contentMargins(.top, coverHeight, for: .scrollContent)
+                        .esaTrackVerticalScroll { scrollOffset = $0 }
+                        // A single full-bleed backdrop draws the cover and the frosted
+                        // sheet in one coordinate space, so they always meet with no gap.
+                        // The resting cover is extended by the top safe-area inset so its
+                        // bottom lands exactly where the (inset) content begins.
+                        .background(alignment: .top) {
+                            CoverHeroBackdrop(
+                                content: self.content,
+                                title: title,
+                                scrollOffset: scrollOffset,
+                                material: material,
+                                containerWidth: width,
+                                coverHeight: coverHeight,
+                                topInset: topInset,
+                                containerHeight: proxy.size.height
+                            )
+                        }
+                }
             }
         } else {
             viewContent
