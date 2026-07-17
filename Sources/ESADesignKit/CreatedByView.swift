@@ -41,7 +41,7 @@ public struct CreatedByView: View {
                     } icon: {
                         Image.esaLogo
                     }
-                    .tint(.accentColor)
+                   // .tint(.accentColor)
                 }
             }
 
@@ -62,6 +62,8 @@ public struct CreatedByView: View {
                     .font(.caption)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .multilineTextAlignment(.center)
     }
 }
 

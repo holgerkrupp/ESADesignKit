@@ -3,9 +3,12 @@
     "author" : "xcode",
     "version" : 1
   },
+  "properties" : {
+    "symbol-rendering-intent" : "multicolor"
+  },
   "symbols" : [
     {
-      "filename" : "Logocurves.symbols.svg",
+      "filename" : "ESALogo.svg",
       "idiom" : "universal"
     }
   ]

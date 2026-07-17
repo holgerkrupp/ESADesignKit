@@ -10,7 +10,8 @@ import SwiftUI
 public extension Image {
     /// The "Extremely Successful Apps" brand logo (custom SF Symbol).
     static var esaLogo: Image {
-        Image("extremelysuccessfullogo", bundle: .module)
+        Image("ESALogo", bundle: .module)
+            .symbolRenderingMode(.multicolor)
     }
 
     /// The GitHub logo used for "Get the source code" links.
