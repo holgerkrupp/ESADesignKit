@@ -188,7 +188,7 @@ private struct CoverHeroSourceModifier: ViewModifier {
         content
             .modifier(
                 CoverHeroModifier(
-                    content: resolved,
+                    content: displayedContent,
                     title: title,
                     enabled: enabled,
                     material: material,
@@ -196,6 +196,18 @@ private struct CoverHeroSourceModifier: ViewModifier {
                 )
             )
             .task(id: taskID) { await resolve() }
+    }
+
+    /// A ready-made `Image` is already resolved and must follow the source value
+    /// directly. Keeping it in `@State` made later images reuse the first image
+    /// because all `.image` sources share the same task identifier.
+    private var displayedContent: ESACoverHeroContent {
+        switch source {
+        case let .image(image):
+            return .image(image)
+        case .url:
+            return resolved
+        }
     }
 
     private var taskID: String {
@@ -208,8 +220,8 @@ private struct CoverHeroSourceModifier: ViewModifier {
     @MainActor
     private func resolve() async {
         switch source {
-        case let .image(image):
-            resolved = .image(image)
+        case .image:
+            return
         case let .url(url):
             guard let url else {
                 resolved = .empty
@@ -219,6 +231,10 @@ private struct CoverHeroSourceModifier: ViewModifier {
                 resolved = .platformImage(cached)
                 return
             }
+            // Do not leave the previous URL's artwork visible while a new URL
+            // resolves. The placeholder keeps the content responsive and avoids
+            // presenting stale artwork for the new item.
+            resolved = .empty
             if let image = await ESAImageCache.shared.image(for: url),
                url.absoluteString == taskID {
                 resolved = .platformImage(image)
