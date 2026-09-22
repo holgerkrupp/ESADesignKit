@@ -140,6 +140,24 @@ blocks are also public: `frostedDetailRow()` / `frostedDetailSectionHeader()`
 frosting + spacer for non-`List` content), and `CoverHeroSpacer` (a manual
 footprint spacer). Most callers won't need these — `.coverHero` alone is enough.
 
+### `scrollingHero` — a hero made from any SwiftUI view
+
+The content-agnostic companion to `coverHero`. It provides the same pinned,
+growing hero and continuous frosted-sheet transition for a map, gradient, video,
+or other custom view. Since arbitrary views have no intrinsic hero aspect ratio,
+the resting height is explicit:
+
+```swift
+ScrollView {
+    TimelineView()
+}
+.scrollingHero(height: 180) {
+    Map()
+}
+```
+
+The existing `coverHero` API and behavior are unchanged.
+
 ### `CreatedByView` — shared footer
 
 The "Created in Buxtehude by Extremely Successful Apps" credit footer, ready to

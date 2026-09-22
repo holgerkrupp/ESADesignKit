@@ -19,6 +19,12 @@ final class ESADesignKitTests: XCTestCase {
         // Ensure the public modifier API type-checks and constructs.
         _ = Text("Row").ESA_RowView(image: URL(string: "https://example.com/cover.jpg"))
         _ = Text("Row").ESA_RowView(image: Image(systemName: "star"))
+        _ = ScrollView { Text("Legacy cover content") }
+            .coverHero(image: .url(URL(string: "https://example.com/cover.jpg")), title: "Cover")
+        _ = List { Text("Legacy data cover content") }
+            .coverHero(imageData: nil, title: "Cover")
+        _ = ScrollView { Text("Content") }
+            .scrollingHero(height: 180) { Color.blue }
         _ = CreatedByView(gitURL: URL(string: "https://github.com/holgerkrupp/PodcastClient"))
     }
 }
