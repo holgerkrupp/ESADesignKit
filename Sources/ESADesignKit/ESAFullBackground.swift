@@ -18,6 +18,13 @@ import SwiftUI
 public struct ESAFullBackground: View {
     private let source: ESAImageSource
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.esaVisualStyle) private var visualStyle
+    @Environment(\.esaUniformPalette) private var uniformPalette
+    @State private var artworkPalette = ESAThemePalette.fallback
+
+    private var palette: ESAThemePalette {
+        visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
+    }
 
     /// The single, shared blur radius for the full-screen backdrop.
     public static var blurRadius: CGFloat { 50 }
@@ -32,7 +39,7 @@ public struct ESAFullBackground: View {
         Group {
             if colorSchemeContrast == .increased {
                 ESAAccessibilityBackground()
-            } else {
+            } else if visualStyle == .artwork {
                 ESABlurredBackground(
                     source: source,
                     radius: Self.blurRadius,
@@ -40,11 +47,23 @@ public struct ESAFullBackground: View {
                 )
                 .scaledToFill()
                 .opacity(Self.opacity)
+            } else {
+                palette.background
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(.all)
+        .task(id: "\(visualStyle.rawValue):\(source.urlValue?.absoluteString ?? "image")") {
+            guard visualStyle == .adaptiveColor, let url = source.urlValue else { return }
+            let result = await ESAArtworkPaletteCache.shared.palette(for: url)
+            artworkPalette = result?.theme ?? .fallback
+        }
+        .environment(\.esaThemePalette, palette)
     }
+}
+
+private extension ESAImageSource {
+    var urlValue: URL? { if case let .url(url) = self { return url }; return nil }
 }
 
 // MARK: - View modifier API
@@ -52,14 +71,14 @@ public struct ESAFullBackground: View {
 public extension View {
     /// Places an ``ESAFullBackground`` (blurred image from `url`) behind this view.
     func ESAFullBackground(image url: URL?) -> some View {
-        background {
+        esaResolveTheme(imageURL: url).background {
             ESADesignKit.ESAFullBackground(image: .url(url))
         }
     }
 
     /// Places an ``ESAFullBackground`` (blurred `Image`) behind this view.
     func ESAFullBackground(image: Image) -> some View {
-        background {
+        esaResolveTheme().background {
             ESADesignKit.ESAFullBackground(image: .image(image))
         }
     }

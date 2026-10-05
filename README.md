@@ -35,6 +35,45 @@ import ESADesignKit
 
 ## What's inside
 
+### Shared visual styles
+
+ESADesignKit surfaces support three runtime styles. Existing apps keep the
+current Artwork appearance unless they opt into another style:
+
+```swift
+content
+    .esaVisualStyle(.adaptiveColor)
+
+content
+    .esaVisualStyle(.uniform, uniformPalette: ESAThemePalette(
+        background: Color(red: 0.08, green: 0.10, blue: 0.14),
+        primaryForeground: .white,
+        secondaryForeground: Color(white: 0.88),
+        controlForeground: .white,
+        separator: Color.white.opacity(0.3),
+        accent: .mint
+    ))
+```
+
+`Artwork` preserves the blurred and frosted design. `Adaptive Color` extracts a
+representative color from URL or image-data artwork, adjusts it to support
+high-contrast text, and caches the result. SwiftUI `Image` values do not expose
+their pixels, so they use the accessible fallback palette. `Uniform` uses only
+the palette supplied by the host app and does not load artwork for surface
+colors. Surfaces expose semantic roles through `EnvironmentValues.esaThemePalette`.
+Apps can use those roles for custom labels, controls, separators, and borders.
+
+The host app owns settings UI and persistence. Inject the modifier at the screen
+or app root; ESADesignKit does not store the selection:
+
+```swift
+RootView()
+    .esaVisualStyle(savedStyle, uniformPalette: appPalette)
+```
+
+Increase Contrast keeps themed surfaces opaque. Reduce Transparency disables
+material-dependent frosting where a solid semantic background is available.
+
 ### `ESA_RowView` — the signature list-row look
 
 A blurred, full-bleed cover image behind a `.thinMaterial` content layer. Apply

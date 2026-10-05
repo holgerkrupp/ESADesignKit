@@ -50,6 +50,7 @@ public extension View {
         modifier(
             CoverHeroModifier(
                 content: ESACoverHeroContent(imageData: imageData),
+                paletteCacheKey: imageData.map(esaPaletteKey),
                 title: title,
                 enabled: enabled,
                 material: material,
@@ -189,6 +190,7 @@ private struct CoverHeroSourceModifier: ViewModifier {
             .modifier(
                 CoverHeroModifier(
                     content: displayedContent,
+                    paletteCacheKey: source.paletteCacheKey,
                     title: title,
                     enabled: enabled,
                     material: material,
@@ -255,29 +257,43 @@ private struct CoverHeroSourceModifier: ViewModifier {
     }
 }
 
+private extension ESAImageSource {
+    var paletteCacheKey: String? {
+        if case let .url(url) = self { return url?.absoluteString }
+        return nil
+    }
+}
+
+private func esaPaletteKey(_ data: Data) -> String {
+    let hash = data.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
+    return "data:\(String(hash, radix: 16))"
+}
+
 // MARK: - Modifier
 
 private struct CoverHeroModifier: ViewModifier {
     let content: ESACoverHeroContent
+    let paletteCacheKey: String?
     let title: String
     let enabled: Bool
     let material: Material
     let placeholderAspectRatio: CGFloat
     @State private var scrollOffset: CGFloat = 0
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.esaVisualStyle) private var visualStyle
+    @Environment(\.esaUniformPalette) private var uniformPalette
+    @State private var artworkPalette = ESAThemePalette.fallback
+
+    private var sheetPalette: ESAThemePalette {
+        visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
+    }
 
     func body(content viewContent: Content) -> some View {
         if enabled {
-            if colorSchemeContrast == .increased {
-                viewContent
-                    .background {
-                        ESAAccessibilityBackground()
-                            .ignoresSafeArea(.all)
-                    }
-            } else {
-                let aspect = self.content.aspectRatio(placeholder: placeholderAspectRatio)
+            let aspect = self.content.aspectRatio(placeholder: placeholderAspectRatio)
 
-                GeometryReader { proxy in
+            GeometryReader { proxy in
                     let width = proxy.size.width
                     let topInset = proxy.safeAreaInsets.top
                     // Reserve the cover's natural full-width height for the scroll
@@ -301,17 +317,41 @@ private struct CoverHeroModifier: ViewModifier {
                                 title: title,
                                 scrollOffset: scrollOffset,
                                 material: material,
+                                visualStyle: visualStyle,
+                                palette: sheetPalette,
+                                reduceTransparency: reduceTransparency,
+                                increasedContrast: colorSchemeContrast == .increased,
                                 containerWidth: width,
                                 coverHeight: coverHeight,
                                 topInset: topInset,
                                 containerHeight: proxy.size.height
                             )
                         }
-                }
+                        .environment(\.esaThemePalette, sheetPalette)
+                        .task(id: paletteTaskKey) { await resolveArtworkPalette() }
             }
         } else {
             viewContent
         }
+    }
+
+    private var paletteTaskKey: String {
+        if let paletteCacheKey { return "\(visualStyle.rawValue):\(paletteCacheKey)" }
+        if case let .platformImage(image) = content { return "adaptive:\(ObjectIdentifier(image).hashValue)" }
+        return visualStyle.rawValue + ":" + placeholderAspectRatio.description
+    }
+
+    @MainActor
+    private func resolveArtworkPalette() async {
+        guard visualStyle == .adaptiveColor else { return }
+        let result: ESAArtworkPalette?
+        switch content {
+        case let .platformImage(image):
+            result = await ESAArtworkPaletteCache.shared.palette(for: image, key: paletteCacheKey ?? "cover:\(ObjectIdentifier(image).hashValue)")
+        case .empty, .image:
+            result = nil
+        }
+        artworkPalette = result?.theme ?? .fallback
     }
 }
 
@@ -348,6 +388,10 @@ private struct CoverHeroBackdrop: View {
     let title: String
     let scrollOffset: CGFloat
     let material: Material
+    let visualStyle: ESAVisualStyle
+    let palette: ESAThemePalette
+    let reduceTransparency: Bool
+    let increasedContrast: Bool
     /// The scroll container's width; the zoomed cover is cropped to this.
     let containerWidth: CGFloat
     /// The cover's natural full-width height (matches the reserved content margin).
@@ -379,8 +423,7 @@ private struct CoverHeroBackdrop: View {
                 .clipped()
 
             // Frosted sheet, directly below the resting cover, rising as we scroll up.
-            Rectangle()
-                .fill(material)
+            sheet
                 .frame(width: containerWidth, height: fullHeight + restHeight)
                 .offset(y: max(0, restHeight - scrolledUp))
         }
@@ -390,6 +433,17 @@ private struct CoverHeroBackdrop: View {
         // artwork and title clipped to the scroll container's horizontal bounds.
         .ignoresSafeArea(.all, edges: .vertical)
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var sheet: some View {
+        if visualStyle == .artwork && !reduceTransparency && !increasedContrast {
+            Rectangle().fill(material)
+        } else if visualStyle == .artwork {
+            Rectangle().fill(ESAThemePalette.standard.background)
+        } else {
+            Rectangle().fill(palette.background)
+        }
     }
 
     @ViewBuilder

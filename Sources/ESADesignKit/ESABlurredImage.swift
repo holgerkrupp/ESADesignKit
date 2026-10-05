@@ -50,8 +50,7 @@ final class ESABlurredImageCache: @unchecked Sendable {
             return cached
         }
 
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
-              let original = ESAPlatformImage(data: data) else {
+        guard let original = await ESAImageCache.shared.image(for: url) else {
             return nil
         }
 

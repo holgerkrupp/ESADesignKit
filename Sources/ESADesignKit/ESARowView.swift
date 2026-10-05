@@ -28,6 +28,13 @@ public struct ESARowView<Content: View>: View {
     private let cornerRadius: CGFloat
     private let content: Content
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.esaVisualStyle) private var visualStyle
+    @Environment(\.esaUniformPalette) private var uniformPalette
+    @State private var artworkPalette = ESAThemePalette.fallback
+    private var activePalette: ESAThemePalette {
+        visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
+    }
 
     /// The single, shared blur radius for every ESA row.
     public static var blurRadius: CGFloat { 8 }
@@ -48,10 +55,10 @@ public struct ESARowView<Content: View>: View {
 
     public var body: some View {
         ZStack {
-            if colorSchemeContrast == .increased {
+            if visualStyle == .artwork && colorSchemeContrast == .increased {
                 ESAAccessibilityBackground()
                     .accessibilityHidden(true)
-            } else {
+            } else if visualStyle == .artwork {
                 ESABlurredBackground(
                     source: source,
                     radius: Self.blurRadius,
@@ -60,19 +67,30 @@ public struct ESARowView<Content: View>: View {
                 .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: minHeight)
                 .clipped()
                 .accessibilityHidden(true)
+            } else {
+                activePalette.background
+                    .accessibilityHidden(true)
             }
 
             content
                 .padding(Self.contentPadding)
                 .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
                 .background {
-                    if colorSchemeContrast == .standard {
+                    if visualStyle == .artwork && colorSchemeContrast == .standard && !reduceTransparency {
                         Rectangle().fill(.thinMaterial)
+                    } else if visualStyle != .artwork {
+                        activePalette.background
                     }
                 }
+                .environment(\.esaThemePalette, activePalette)
         }
         .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
         .modifier(ESACornerClip(radius: cornerRadius))
+        .task(id: "\(visualStyle.rawValue):\(source.urlValue?.absoluteString ?? "image")") {
+            guard visualStyle == .adaptiveColor, let url = source.urlValue else { return }
+            let palette = await ESAArtworkPaletteCache.shared.palette(for: url)
+            artworkPalette = palette?.theme ?? .fallback
+        }
     }
 }
 
@@ -118,4 +136,8 @@ private struct ESACornerClip: ViewModifier {
             content
         }
     }
+}
+
+private extension ESAImageSource {
+    var urlValue: URL? { if case let .url(url) = self { return url }; return nil }
 }

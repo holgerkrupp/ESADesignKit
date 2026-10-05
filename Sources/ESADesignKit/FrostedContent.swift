@@ -60,11 +60,14 @@ public extension View {
 private struct FrostedDetailRow: ViewModifier {
     let material: Material
     let enabled: Bool
+    @Environment(\.esaVisualStyle) private var style
+    @Environment(\.esaThemePalette) private var palette
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
         if enabled {
             content
-                .listRowBackground(Rectangle().fill(material))
+                .listRowBackground(background)
                 .listRowSeparator(.hidden)
         } else {
             content
@@ -72,11 +75,19 @@ private struct FrostedDetailRow: ViewModifier {
                 .listRowSeparator(.hidden)
         }
     }
+
+    @ViewBuilder private var background: some View {
+        if style == .artwork && !reduceTransparency { Rectangle().fill(material) }
+        else { Rectangle().fill(palette.background) }
+    }
 }
 
 private struct FrostedDetailSectionHeader: ViewModifier {
     let material: Material
     let enabled: Bool
+    @Environment(\.esaVisualStyle) private var style
+    @Environment(\.esaThemePalette) private var palette
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
         if enabled {
@@ -85,7 +96,10 @@ private struct FrostedDetailSectionHeader: ViewModifier {
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
                 .padding(.bottom, 8)
-                .background(material)
+                .background {
+                    if style == .artwork && !reduceTransparency { Rectangle().fill(material) }
+                    else { Rectangle().fill(palette.background) }
+                }
                 .listRowInsets(EdgeInsets())
         } else {
             content
@@ -100,6 +114,15 @@ private struct FrostedContentPanel: ViewModifier {
     let material: Material
     let enabled: Bool
     let placeholderAspectRatio: CGFloat
+    @Environment(\.esaVisualStyle) private var style
+    @Environment(\.esaThemePalette) private var palette
+    @Environment(\.esaUniformPalette) private var uniformPalette
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @State private var artworkPalette = ESAThemePalette.fallback
+
+    private var activePalette: ESAThemePalette {
+        style == .uniform ? uniformPalette : (style == .adaptiveColor ? artworkPalette : palette)
+    }
 
     func body(content: Content) -> some View {
         if enabled {
@@ -107,7 +130,16 @@ private struct FrostedContentPanel: ViewModifier {
                 CoverHeroSpacer(imageData: coverImageData, placeholderAspectRatio: placeholderAspectRatio)
                 content
                     .frame(maxWidth: .infinity)
-                    .background(material)
+                    .background {
+                        if style == .artwork && !reduceTransparency { Rectangle().fill(material) }
+                        else { Rectangle().fill(activePalette.background) }
+                    }
+                    .environment(\.esaThemePalette, activePalette)
+            }
+            .task(id: "\(style.rawValue):\(coverImageData?.hashValue ?? 0)") {
+                guard style == .adaptiveColor, let coverImageData else { return }
+                let result = await ESAArtworkPaletteCache.shared.palette(for: coverImageData)
+                artworkPalette = result?.theme ?? .fallback
             }
         } else {
             content
