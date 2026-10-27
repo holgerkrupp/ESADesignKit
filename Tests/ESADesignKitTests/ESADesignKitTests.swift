@@ -21,6 +21,22 @@ final class ESADesignKitTests: XCTestCase {
         _ = Text("Themed").esaVisualStyle(.uniform)
     }
 
+    @MainActor
+    func testArtworkBlurPresetsPreserveDefaultsAndIncreaseMonotonically() {
+        XCTAssertEqual(ESAArtworkBlurLevel.allCases.count, 5)
+        XCTAssertEqual(ESAArtworkBlurLevel.standard.rowBlurRadius, ESARowView<Text>.blurRadius)
+        XCTAssertEqual(ESAArtworkBlurLevel.standard.fullBackgroundBlurRadius, ESAFullBackground.blurRadius)
+
+        let levels = ESAArtworkBlurLevel.allCases
+        for (first, second) in zip(levels, levels.dropFirst()) {
+            XCTAssertLessThan(first.rowBlurRadius, second.rowBlurRadius)
+            XCTAssertLessThan(first.fullBackgroundBlurRadius, second.fullBackgroundBlurRadius)
+        }
+        _ = Text("Row")
+            .ESA_RowView(image: URL(string: "https://example.com/cover.png"))
+            .esaArtworkBlurLevel(.strong)
+    }
+
     func testArtworkPaletteForegroundRolesMeetNormalTextContrast() {
         let samples = [
             RGB(red: 0, green: 0, blue: 0),
