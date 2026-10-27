@@ -71,6 +71,22 @@ RootView()
     .esaVisualStyle(savedStyle, uniformPalette: appPalette)
 ```
 
+For Artwork, apps can also offer a five-step blur control. The default
+`.standard` retains the existing 8pt row / 50pt full-background radii and
+original frosted materials; the other presets adjust backdrop blur and row
+material without blurring the cover hero image itself:
+
+```swift
+RootView()
+    .esaArtworkBlurLevel(.soft)
+
+DetailView()
+    .coverHero(image: coverURL, material: ESAArtworkBlurLevel.soft.detailMaterial)
+```
+
+This is an environment preference, not synced or persisted by the package.
+`Adaptive Color`, `Uniform`, and Increased Contrast solid backgrounds ignore it.
+
 Increase Contrast keeps themed surfaces opaque. Reduce Transparency disables
 material-dependent frosting where a solid semantic background is available.
 
@@ -90,8 +106,9 @@ HStack {
 .ESA_RowView(image: Image("placeholder"))     // SwiftUI Image
 ```
 
-The blur, dim, and content alignment are fixed so every row looks identical
-across apps; only `minHeight` (and optional `cornerRadius`) vary per use site.
+By default every row uses the original blur and material. Apps may explicitly
+change the Artwork treatment using `.esaArtworkBlurLevel(…)`. Row height and
+content alignment remain unchanged.
 The struct form `ESARowView(image:minHeight:) { … }` is also available.
 
 ### `ESAFullBackground` — the signature detail-screen backdrop
@@ -109,8 +126,8 @@ List {
 .ESAFullBackground(image: Image("cover"))      // SwiftUI Image
 ```
 
-Blur radius (15) and opacity (0.5) are fixed for a consistent look. The struct
-form `ESAFullBackground(image:)` is also available.
+The standard Artwork radius is 50 and opacity is 0.5; other blur presets alter
+only the radius. The struct form `ESAFullBackground(image:)` is also available.
 
 ### `coverHero` — the immersive detail cover
 

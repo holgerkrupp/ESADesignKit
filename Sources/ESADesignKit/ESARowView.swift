@@ -19,9 +19,8 @@ public enum ESAImageSource {
 
 /// A list-row container drawing a blurred cover image behind a material content layer.
 ///
-/// The blur, background opacity, and content alignment are intentionally fixed so
-/// every row across every app looks identical. Only `minHeight` (the row's height)
-/// is meant to vary per use site.
+/// The standard Artwork preset preserves the original blur/material; apps can
+/// opt into other shared presets through the environment without changing layout.
 public struct ESARowView<Content: View>: View {
     private let source: ESAImageSource
     private let minHeight: CGFloat
@@ -30,13 +29,14 @@ public struct ESARowView<Content: View>: View {
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.esaVisualStyle) private var visualStyle
+    @Environment(\.esaArtworkBlurLevel) private var artworkBlurLevel
     @Environment(\.esaUniformPalette) private var uniformPalette
     @State private var artworkPalette = ESAThemePalette.fallback
     private var activePalette: ESAThemePalette {
         visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
     }
 
-    /// The single, shared blur radius for every ESA row.
+    /// The legacy standard row blur radius, preserved for compatibility.
     public static var blurRadius: CGFloat { 8 }
     /// The single, shared inner padding for every ESA row.
     public static var contentPadding: CGFloat { 8 }
@@ -61,7 +61,7 @@ public struct ESARowView<Content: View>: View {
             } else if visualStyle == .artwork {
                 ESABlurredBackground(
                     source: source,
-                    radius: Self.blurRadius,
+                    radius: artworkBlurLevel.rowBlurRadius,
                     placeholderColor: .accentColor
                 )
                 .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: minHeight)
@@ -77,7 +77,7 @@ public struct ESARowView<Content: View>: View {
                 .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
                 .background {
                     if visualStyle == .artwork && colorSchemeContrast == .standard && !reduceTransparency {
-                        Rectangle().fill(.thinMaterial)
+                        Rectangle().fill(artworkBlurLevel.rowMaterial)
                     } else if visualStyle != .artwork {
                         activePalette.background
                     }

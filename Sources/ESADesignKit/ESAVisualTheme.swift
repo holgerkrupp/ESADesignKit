@@ -21,6 +21,57 @@ public enum ESAVisualStyle: String, CaseIterable, Codable, Sendable {
     case uniform
 }
 
+/// Five discrete Artwork backdrop treatments. The default (.standard) preserves
+/// the original 8pt row blur, 50pt full-screen blur and frosted materials.
+/// Host apps persist the raw value; ESADesignKit only consumes the environment.
+public enum ESAArtworkBlurLevel: Int, CaseIterable, Codable, Sendable {
+    case minimal = 0
+    case soft = 1
+    case standard = 2
+    case strong = 3
+    case maximum = 4
+
+    public var rowBlurRadius: CGFloat {
+        switch self {
+        case .minimal: 2
+        case .soft: 5
+        case .standard: 8
+        case .strong: 14
+        case .maximum: 24
+        }
+    }
+
+    public var fullBackgroundBlurRadius: CGFloat {
+        switch self {
+        case .minimal: 12
+        case .soft: 30
+        case .standard: 50
+        case .strong: 65
+        case .maximum: 80
+        }
+    }
+
+    /// For the transparent content over rows. Higher levels frost more heavily.
+    public var rowMaterial: Material {
+        switch self {
+        case .minimal, .soft: .ultraThinMaterial
+        case .standard: .thinMaterial
+        case .strong: .regularMaterial
+        case .maximum: .thickMaterial
+        }
+    }
+
+    /// For a detail screen's moving coverHero content sheet. This is supplied
+    /// explicitly by host views; the hero image itself is never blurred.
+    public var detailMaterial: Material {
+        switch self {
+        case .minimal, .soft, .standard: .ultraThinMaterial
+        case .strong: .thinMaterial
+        case .maximum: .regularMaterial
+        }
+    }
+}
+
 /// Semantic colors used by themed content and surfaces.
 public struct ESAThemePalette: @unchecked Sendable {
     public let background: Color
@@ -73,6 +124,10 @@ private struct ESAVisualStyleKey: EnvironmentKey {
     static let defaultValue: ESAVisualStyle = .artwork
 }
 
+private struct ESAArtworkBlurLevelKey: EnvironmentKey {
+    static let defaultValue: ESAArtworkBlurLevel = .standard
+}
+
 private struct ESAUniformPaletteKey: EnvironmentKey {
     static let defaultValue: ESAThemePalette = .standard
 }
@@ -86,6 +141,13 @@ public extension EnvironmentValues {
     var esaVisualStyle: ESAVisualStyle {
         get { self[ESAVisualStyleKey.self] }
         set { self[ESAVisualStyleKey.self] = newValue }
+    }
+
+    /// Controls Artwork-only row and detail backdrop blur; unrelated designs
+    /// and accessibility solid-background fallbacks are not affected.
+    var esaArtworkBlurLevel: ESAArtworkBlurLevel {
+        get { self[ESAArtworkBlurLevelKey.self] }
+        set { self[ESAArtworkBlurLevelKey.self] = newValue }
     }
 
     /// The host app's palette for the Uniform visual style.
@@ -107,6 +169,11 @@ public extension View {
     func esaVisualStyle(_ style: ESAVisualStyle, uniformPalette: ESAThemePalette = .standard) -> some View {
         environment(\.esaVisualStyle, style)
             .environment(\.esaUniformPalette, uniformPalette)
+    }
+
+    /// Supplies the Artwork blur preset to ESADesignKit descendants.
+    func esaArtworkBlurLevel(_ level: ESAArtworkBlurLevel) -> some View {
+        environment(\.esaArtworkBlurLevel, level)
     }
 
     /// Resolves the semantic palette for a themed surface and exposes it through

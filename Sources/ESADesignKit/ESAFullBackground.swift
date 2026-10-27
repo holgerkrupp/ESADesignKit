@@ -13,12 +13,13 @@ import SwiftUI
 /// A full-bleed blurred cover image, sized to fill and dimmed — the standard ESA
 /// detail-screen backdrop.
 ///
-/// Like `ESARowView`, the blur radius and dim are intentionally fixed so the look
-/// is identical everywhere it's used.
+/// The standard Artwork preset keeps the original 50pt blur and 0.5 dimming;
+/// apps may opt into a different blur level through the environment.
 public struct ESAFullBackground: View {
     private let source: ESAImageSource
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.esaVisualStyle) private var visualStyle
+    @Environment(\.esaArtworkBlurLevel) private var artworkBlurLevel
     @Environment(\.esaUniformPalette) private var uniformPalette
     @State private var artworkPalette = ESAThemePalette.fallback
 
@@ -26,7 +27,7 @@ public struct ESAFullBackground: View {
         visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
     }
 
-    /// The single, shared blur radius for the full-screen backdrop.
+    /// The legacy standard blur radius, preserved for compatibility.
     public static var blurRadius: CGFloat { 50 }
     /// The single, shared opacity for the full-screen backdrop.
     public static var opacity: Double { 0.5 }
@@ -42,7 +43,7 @@ public struct ESAFullBackground: View {
             } else if visualStyle == .artwork {
                 ESABlurredBackground(
                     source: source,
-                    radius: Self.blurRadius,
+                    radius: artworkBlurLevel.fullBackgroundBlurRadius,
                     placeholderColor: .accentColor
                 )
                 .scaledToFill()
