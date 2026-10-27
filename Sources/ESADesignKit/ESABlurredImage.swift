@@ -61,7 +61,9 @@ final class ESABlurredImageCache: @unchecked Sendable {
 
     // MARK: - Core Image blur
 
-    private static let context: CIContext = CIContext(options: [.useSoftwareRenderer: false])
+    #if canImport(CoreImage)
+    private static let context = CIContext(options: [.useSoftwareRenderer: false])
+    #endif
 
     static func blur(_ image: ESAPlatformImage, radius: CGFloat) -> ESAPlatformImage? {
         #if canImport(CoreImage)

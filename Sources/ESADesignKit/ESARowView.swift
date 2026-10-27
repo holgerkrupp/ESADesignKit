@@ -15,6 +15,9 @@ public enum ESAImageSource {
     case url(URL?)
     /// A ready-made SwiftUI `Image` (asset, SF Symbol, etc.). Blurred live.
     case image(Image)
+    /// A decoded platform image, used when callers already hold artwork pixels.
+    /// Unlike `Image`, this source can also be analyzed for an Adaptive Color palette.
+    case platformImage(ESAPlatformImage)
 }
 
 /// A list-row container drawing a blurred cover image behind a material content layer.
@@ -27,13 +30,16 @@ public struct ESARowView<Content: View>: View {
     private let cornerRadius: CGFloat
     private let content: Content
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.esaVisualStyle) private var visualStyle
     @Environment(\.esaArtworkBlurLevel) private var artworkBlurLevel
     @Environment(\.esaUniformPalette) private var uniformPalette
     @State private var artworkPalette = ESAThemePalette.fallback
     private var activePalette: ESAThemePalette {
-        visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
+        visualStyle == .uniform
+            ? uniformPalette
+            : (visualStyle == .adaptiveColor ? artworkPalette.adaptiveVariant(for: colorScheme) : .standard)
     }
 
     /// The legacy standard row blur radius, preserved for compatibility.
@@ -86,9 +92,21 @@ public struct ESARowView<Content: View>: View {
         }
         .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
         .modifier(ESACornerClip(radius: cornerRadius))
-        .task(id: "\(visualStyle.rawValue):\(source.urlValue?.absoluteString ?? "image")") {
-            guard visualStyle == .adaptiveColor, let url = source.urlValue else { return }
-            let palette = await ESAArtworkPaletteCache.shared.palette(for: url)
+        .task(id: "\(visualStyle.rawValue):\(source.cacheKey)") {
+            guard visualStyle == .adaptiveColor else { return }
+            let palette: ESAArtworkPalette?
+            switch source {
+            case let .url(url):
+                if let url {
+                    palette = await ESAArtworkPaletteCache.shared.palette(for: url)
+                } else {
+                    palette = nil
+                }
+            case .image:
+                palette = nil
+            case let .platformImage(image):
+                palette = await ESAArtworkPaletteCache.shared.palette(for: image, key: source.cacheKey)
+            }
             artworkPalette = palette?.theme ?? .fallback
         }
     }
@@ -140,4 +158,12 @@ private struct ESACornerClip: ViewModifier {
 
 private extension ESAImageSource {
     var urlValue: URL? { if case let .url(url) = self { return url }; return nil }
+
+    var cacheKey: String {
+        switch self {
+        case let .url(url): url?.absoluteString ?? "none"
+        case .image: "image"
+        case let .platformImage(image): "platform:\(ObjectIdentifier(image).hashValue)"
+        }
+    }
 }

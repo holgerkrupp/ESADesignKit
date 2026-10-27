@@ -68,11 +68,15 @@ private struct FrostedDetailRow: ViewModifier {
         if enabled {
             content
                 .listRowBackground(background)
+#if !os(watchOS)
                 .listRowSeparator(.hidden)
+#endif
         } else {
             content
                 .listRowBackground(Color.clear)
+#if !os(watchOS)
                 .listRowSeparator(.hidden)
+#endif
         }
     }
 
@@ -115,13 +119,16 @@ private struct FrostedContentPanel: ViewModifier {
     let enabled: Bool
     let placeholderAspectRatio: CGFloat
     @Environment(\.esaVisualStyle) private var style
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.esaThemePalette) private var palette
     @Environment(\.esaUniformPalette) private var uniformPalette
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var artworkPalette = ESAThemePalette.fallback
 
     private var activePalette: ESAThemePalette {
-        style == .uniform ? uniformPalette : (style == .adaptiveColor ? artworkPalette : palette)
+        style == .uniform
+            ? uniformPalette
+            : (style == .adaptiveColor ? artworkPalette.adaptiveVariant(for: colorScheme) : palette)
     }
 
     func body(content: Content) -> some View {
@@ -168,7 +175,9 @@ public struct CoverHeroSpacer: View {
             .frame(maxWidth: .infinity)
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
+#if !os(watchOS)
             .listRowSeparator(.hidden)
+#endif
             .accessibilityHidden(true)
     }
 

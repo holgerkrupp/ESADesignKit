@@ -53,17 +53,39 @@ final class ESAArtworkPaletteCache: @unchecked Sendable {
         }
         guard rendered else { return nil }
 
-        // Quantize into 5-bit RGB buckets and choose the most frequent bucket.
+        // Quantize into 5-bit RGB buckets and choose a frequent, saturated
+        // color. Counting exact RGB values made shadows, black borders, and
+        // tiny quantization differences drown out the artwork's actual hue.
         // Transparent pixels are excluded; a small sample bounds the cost.
-        var histogram: [UInt32: Int] = [:]
+        var histogram: [UInt32: (count: Int, red: Double, green: Double, blue: Double, score: Double)] = [:]
         for index in stride(from: 0, to: pixels.count, by: 4) where pixels[index + 3] > 12 {
-            let r = UInt32(pixels[index] >> 3), g = UInt32(pixels[index + 1] >> 3), b = UInt32(pixels[index + 2] >> 3)
-            histogram[(r << 10) | (g << 5) | b, default: 0] += 1
+            let red = Double(pixels[index]) / 255
+            let green = Double(pixels[index + 1]) / 255
+            let blue = Double(pixels[index + 2]) / 255
+            let maximum = max(red, green, blue)
+            let minimum = min(red, green, blue)
+            let saturation = maximum == 0 ? 0 : (maximum - minimum) / maximum
+            guard maximum > 0.06 else { continue }
+
+            let key = (UInt32(pixels[index] >> 3) << 10)
+                | (UInt32(pixels[index + 1] >> 3) << 5)
+                | UInt32(pixels[index + 2] >> 3)
+            var bucket = histogram[key, default: (0, 0, 0, 0, 0)]
+            bucket.count += 1
+            bucket.red += red
+            bucket.green += green
+            bucket.blue += blue
+            // Favor vivid artwork colors without allowing a tiny accent to
+            // outweigh a color that is genuinely present across the cover.
+            bucket.score += 0.25 + saturation * 1.75
+            histogram[key] = bucket
         }
-        guard let dominant = histogram.max(by: { $0.value < $1.value })?.key else { return nil }
-        let rgb = RGB(red: Double((dominant >> 10) & 31) / 31,
-                      green: Double((dominant >> 5) & 31) / 31,
-                      blue: Double(dominant & 31) / 31)
+        guard let dominant = histogram.max(by: { $0.value.score < $1.value.score })?.value,
+              dominant.count > 0 else { return nil }
+        let divisor = Double(dominant.count)
+        let rgb = RGB(red: dominant.red / divisor,
+                      green: dominant.green / divisor,
+                      blue: dominant.blue / divisor)
         return rgb
     }
 }

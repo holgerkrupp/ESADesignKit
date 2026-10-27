@@ -99,7 +99,16 @@ public struct ESAThemePalette: @unchecked Sendable {
 
     /// A system-aware neutral palette suitable as a host app's starting point.
     public static let standard: ESAThemePalette = {
-        #if canImport(UIKit)
+        #if os(watchOS)
+        // UIKit exposes none of its label/background color constants on
+        // watchOS. Let native watch surfaces supply their background while
+        // retaining SwiftUI's adaptive semantic foregrounds.
+        ESAThemePalette(background: .clear,
+                        primaryForeground: .primary,
+                        secondaryForeground: .secondary,
+                        controlForeground: .primary,
+                        separator: .secondary.opacity(0.35), accent: .accentColor)
+        #elseif canImport(UIKit)
         ESAThemePalette(background: Color(uiColor: .systemBackground),
                         primaryForeground: Color(uiColor: .label),
                         secondaryForeground: Color(uiColor: .secondaryLabel),
@@ -179,22 +188,73 @@ public extension View {
     /// Resolves the semantic palette for a themed surface and exposes it through
     /// `EnvironmentValues.esaThemePalette` to nested labels and controls.
     func esaResolveTheme(imageURL: URL? = nil, imageData: Data? = nil) -> some View {
-        modifier(ESAResolveThemeModifier(imageURL: imageURL, imageData: imageData))
+        modifier(ESAResolveThemeModifier(imageURL: imageURL, imageData: imageData, imageSource: nil))
+    }
+
+    /// Resolves artwork from an image source that already contains decoded pixels.
+    func esaResolveTheme(image source: ESAImageSource) -> some View {
+        modifier(ESAResolveThemeModifier(imageURL: nil, imageData: nil, imageSource: source))
+    }
+}
+
+public extension ESAThemePalette {
+    /// Resolves an artwork hue into contrast-safe light and dark surfaces.
+    /// The same extracted color is kept, with luminance adjusted for the
+    /// active appearance so the design remains recognizable in both modes.
+    func adaptiveVariant(for colorScheme: ColorScheme) -> ESAThemePalette {
+        guard let source = RGB(color: background) else { return self }
+
+        let variant: RGB
+        let foreground: Color
+        switch colorScheme {
+        case .light:
+            variant = source.luminance < 0.84
+                ? source.adjustedLuminance(toward: RGB(red: 1, green: 1, blue: 1), target: 0.84)
+                : source
+            foreground = .black
+        case .dark:
+            variant = source.luminance > 0.12
+                ? source.adjustedLuminance(toward: RGB(red: 0, green: 0, blue: 0), target: 0.12)
+                : source
+            foreground = .white
+        @unknown default:
+            return self
+        }
+
+        return ESAThemePalette(
+            background: variant.color,
+            primaryForeground: foreground,
+            secondaryForeground: foreground.opacity(0.84),
+            controlForeground: foreground,
+            separator: foreground.opacity(0.35),
+            accent: accent
+        )
     }
 }
 
 private struct ESAResolveThemeModifier: ViewModifier {
     let imageURL: URL?
     let imageData: Data?
+    let imageSource: ESAImageSource?
     @Environment(\.esaVisualStyle) private var style
     @Environment(\.esaUniformPalette) private var uniformPalette
+    @Environment(\.colorScheme) private var colorScheme
     @State private var artworkPalette = ESAThemePalette.fallback
 
-    private var cacheKey: String { imageURL?.absoluteString ?? imageData.map { "data:\($0.hashValue)" } ?? "none" }
+    private var cacheKey: String {
+        if let imageSource {
+            switch imageSource {
+            case let .url(url): return url?.absoluteString ?? "none"
+            case .image: return "image"
+            case let .platformImage(image): return "platform:\(ObjectIdentifier(image).hashValue)"
+            }
+        }
+        return imageURL?.absoluteString ?? imageData.map { "data:\($0.hashValue)" } ?? "none"
+    }
     private var resolved: ESAThemePalette {
         switch style {
         case .artwork: return .standard
-        case .adaptiveColor: return artworkPalette
+        case .adaptiveColor: return artworkPalette.adaptiveVariant(for: colorScheme)
         case .uniform: return uniformPalette
         }
     }
@@ -205,7 +265,20 @@ private struct ESAResolveThemeModifier: ViewModifier {
             .task(id: "\(style.rawValue):\(cacheKey)") {
                 guard style == .adaptiveColor else { return }
                 let palette: ESAArtworkPalette?
-                if let imageURL {
+                if let imageSource {
+                    switch imageSource {
+                    case let .url(url):
+                        if let url {
+                            palette = await ESAArtworkPaletteCache.shared.palette(for: url)
+                        } else {
+                            palette = nil
+                        }
+                    case .image:
+                        palette = nil
+                    case let .platformImage(image):
+                        palette = await ESAArtworkPaletteCache.shared.palette(for: image, key: cacheKey)
+                    }
+                } else if let imageURL {
                     palette = await ESAArtworkPaletteCache.shared.palette(for: imageURL)
                 } else if let imageData {
                     palette = await ESAArtworkPaletteCache.shared.palette(for: imageData)
@@ -229,7 +302,10 @@ public struct ESAArtworkPalette: @unchecked Sendable {
     init(background: RGB) {
         let adjusted = background.accessibleBackground
         self.background = adjusted.color
-        let foreground = adjusted.luminance > 0.5 ? Color.black : Color.white
+        // Choose the contrasting neutral at the WCAG AA crossover. Keeping
+        // the extracted background intact lets saturated cover colors remain
+        // vivid while still providing readable text and controls.
+        let foreground = adjusted.luminance > 0.179 ? Color.black : Color.white
         primaryForeground = foreground
         secondaryForeground = foreground
         controlForeground = foreground
@@ -263,17 +339,35 @@ struct RGB: Sendable {
         return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
     var accessibleBackground: RGB {
-        // Keep the dominant hue while constraining luminance so black or white
-        // semantic foregrounds meet WCAG AA for normal text.
-        let target = luminance > 0.45 ? 0.88 : 0.14
-        let current = max(red, green, blue)
-        guard current > 0 else { return RGB(red: target, green: target, blue: target) }
-        let factor = min(1.0, target / current)
-        let scaled = RGB(red: red * factor, green: green * factor, blue: blue * factor)
-        if (target > 0.5 && scaled.luminance < 0.75) || (target <= 0.5 && scaled.luminance > 0.18) {
-            return RGB(red: target, green: target, blue: target)
+        // The palette selects black above 0.179 luminance and white at or
+        // below it. Both choices meet WCAG AA contrast for normal text, so
+        // preserve the extracted artwork color instead of dimming every dark
+        // hue to the same near-black value.
+        self
+    }
+
+    func adjustedLuminance(toward destination: RGB, target: Double) -> RGB {
+        var lower = 0.0
+        var upper = 1.0
+        let increasingLuminance = target > luminance
+        for _ in 0..<20 {
+            let amount = (lower + upper) / 2
+            let candidate = RGB(
+                red: red + (destination.red - red) * amount,
+                green: green + (destination.green - green) * amount,
+                blue: blue + (destination.blue - blue) * amount
+            )
+            let shouldIncreaseAmount = increasingLuminance
+                ? candidate.luminance < target
+                : candidate.luminance > target
+            if shouldIncreaseAmount { lower = amount } else { upper = amount }
         }
-        return scaled
+        let amount = (lower + upper) / 2
+        return RGB(
+            red: red + (destination.red - red) * amount,
+            green: green + (destination.green - green) * amount,
+            blue: blue + (destination.blue - blue) * amount
+        )
     }
 
     init(red: Double, green: Double, blue: Double) { self.red = red; self.green = green; self.blue = blue }

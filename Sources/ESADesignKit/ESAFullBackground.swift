@@ -18,13 +18,16 @@ import SwiftUI
 public struct ESAFullBackground: View {
     private let source: ESAImageSource
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.esaVisualStyle) private var visualStyle
     @Environment(\.esaArtworkBlurLevel) private var artworkBlurLevel
     @Environment(\.esaUniformPalette) private var uniformPalette
     @State private var artworkPalette = ESAThemePalette.fallback
 
     private var palette: ESAThemePalette {
-        visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
+        visualStyle == .uniform
+            ? uniformPalette
+            : (visualStyle == .adaptiveColor ? artworkPalette.adaptiveVariant(for: colorScheme) : .standard)
     }
 
     /// The legacy standard blur radius, preserved for compatibility.
@@ -54,9 +57,21 @@ public struct ESAFullBackground: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(.all)
-        .task(id: "\(visualStyle.rawValue):\(source.urlValue?.absoluteString ?? "image")") {
-            guard visualStyle == .adaptiveColor, let url = source.urlValue else { return }
-            let result = await ESAArtworkPaletteCache.shared.palette(for: url)
+        .task(id: "\(visualStyle.rawValue):\(source.cacheKey)") {
+            guard visualStyle == .adaptiveColor else { return }
+            let result: ESAArtworkPalette?
+            switch source {
+            case let .url(url):
+                if let url {
+                    result = await ESAArtworkPaletteCache.shared.palette(for: url)
+                } else {
+                    result = nil
+                }
+            case .image:
+                result = nil
+            case let .platformImage(image):
+                result = await ESAArtworkPaletteCache.shared.palette(for: image, key: source.cacheKey)
+            }
             artworkPalette = result?.theme ?? .fallback
         }
         .environment(\.esaThemePalette, palette)
@@ -65,6 +80,14 @@ public struct ESAFullBackground: View {
 
 private extension ESAImageSource {
     var urlValue: URL? { if case let .url(url) = self { return url }; return nil }
+
+    var cacheKey: String {
+        switch self {
+        case let .url(url): url?.absoluteString ?? "none"
+        case .image: "image"
+        case let .platformImage(image): "platform:\(ObjectIdentifier(image).hashValue)"
+        }
+    }
 }
 
 // MARK: - View modifier API

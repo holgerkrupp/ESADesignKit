@@ -24,6 +24,11 @@ struct ESABlurredBackground: View {
                 .resizable()
                 .scaledToFill()
                 .blur(radius: radius)
+        case let .platformImage(image):
+            Image(esaPlatformImage: image)
+                .resizable()
+                .scaledToFill()
+                .blur(radius: radius)
         }
     }
 }

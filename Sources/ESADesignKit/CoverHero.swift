@@ -207,6 +207,8 @@ private struct CoverHeroSourceModifier: ViewModifier {
         switch source {
         case let .image(image):
             return .image(image)
+        case let .platformImage(image):
+            return .platformImage(image)
         case .url:
             return resolved
         }
@@ -216,13 +218,14 @@ private struct CoverHeroSourceModifier: ViewModifier {
         switch source {
         case let .url(url): return url?.absoluteString ?? "none"
         case .image: return "image"
+        case let .platformImage(image): return "platform:\(ObjectIdentifier(image).hashValue)"
         }
     }
 
     @MainActor
     private func resolve() async {
         switch source {
-        case .image:
+        case .image, .platformImage:
             return
         case let .url(url):
             guard let url else {
@@ -248,6 +251,8 @@ private struct CoverHeroSourceModifier: ViewModifier {
         switch source {
         case let .image(image):
             return .image(image)
+        case let .platformImage(image):
+            return .platformImage(image)
         case let .url(url):
             if let url, let cached = ESAImageCache.shared.cached(for: url) {
                 return .platformImage(cached)
@@ -259,8 +264,11 @@ private struct CoverHeroSourceModifier: ViewModifier {
 
 private extension ESAImageSource {
     var paletteCacheKey: String? {
-        if case let .url(url) = self { return url?.absoluteString }
-        return nil
+        switch self {
+        case let .url(url): url?.absoluteString
+        case .image: nil
+        case let .platformImage(image): "platform:\(ObjectIdentifier(image).hashValue)"
+        }
     }
 }
 
@@ -280,13 +288,16 @@ private struct CoverHeroModifier: ViewModifier {
     let placeholderAspectRatio: CGFloat
     @State private var scrollOffset: CGFloat = 0
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.esaVisualStyle) private var visualStyle
     @Environment(\.esaUniformPalette) private var uniformPalette
     @State private var artworkPalette = ESAThemePalette.fallback
 
     private var sheetPalette: ESAThemePalette {
-        visualStyle == .uniform ? uniformPalette : (visualStyle == .adaptiveColor ? artworkPalette : .standard)
+        visualStyle == .uniform
+            ? uniformPalette
+            : (visualStyle == .adaptiveColor ? artworkPalette.adaptiveVariant(for: colorScheme) : .standard)
     }
 
     func body(content viewContent: Content) -> some View {
