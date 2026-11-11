@@ -56,6 +56,18 @@ public struct CreatedByView: View {
                     .tint(.accentColor)
                 }
             }
+            
+            if let mailURL = URL(string: "mailto: holger@extremelysuccessfulapps.com"){
+                Label {
+                    Text("contact")
+                } icon: {
+                    Image(systemName: "envelope")
+                }
+                .tint(.accentColor)
+            }
+           
+
+         //
 
             if showVersion {
                 ESAVersionNumberView()
